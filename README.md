@@ -46,5 +46,5 @@ Just put the code from `requirements.ps1` at the top of your script and make a `
 The final path would be (notice the single quotes; paste it into powershell if you're confused):
 
 ```posh
-'${env:Temp}\github_release_cache\Write-Log-1.1.1\Write-Log.ps1'`
+'${env:Temp}\github_release_cache\Write-Log-1.1.1\Write-Log.ps1'
 ```
