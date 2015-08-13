@@ -2,9 +2,25 @@
 
 This is a simple script that reads a REQUIREMENTS document from a REQUIREMENTS.json file and does the necessary installs.
 
+# Usage
+
 Just put the code from `requirements.ps1` at the top of your script and make a `REQUIREMENTS.json` file.
 
+## Pull from GitHub
+
+```posh
+Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.1/requirements.ps1' -UseBasicParsing).Content
+```
+
+Like obnoxiously short versions of commands? I've got you covered:
+
+```posh
+iex (iwr 'https://goo.gl/swuuKv' -useb).Content
+```
+
 # Sample REQUIREMENTS.json
+
+The `URL_f` and `Path_f` keys are optional. Use them the to format (`-f`) the corresponding keys. The `$requirement` variable refers to the current requirement; this is useful for injecting the value of one key into the value of another. Only `URL` and `Path` use `-f` operators.
 
 ## Work from Local
 
