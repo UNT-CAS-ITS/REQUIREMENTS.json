@@ -13,7 +13,7 @@ Just put the code from `requirements.ps1` at the top of your script and make a `
 		"Version": "1.1.1",
 		"URL": "https://github.com/UNT-CAS-ITS/Write-Log/archive/v{0}.zip",
 		"URL_f": "$requirement.Version",
-		"Path": ".\\Write-Log-{0}\\Write-Log.ps1",
+		"Path": "${env:Temp}\\github_release_cache\\Write-Log-{0}\\Write-Log.ps1",
 		"Path_f": "$requirement.Version"
 	}
 ]
