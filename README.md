@@ -31,8 +31,26 @@ The `URL_f` and `Path_f` keys are optional. Use them the to format (`-f`) the co
 		"Version": "1.1.1",
 		"URL": "https://github.com/UNT-CAS-ITS/Write-Log/archive/v{0}.zip",
 		"URL_f": "$requirement.Version",
-		"Path": ".\\Write-Log-{1}\\Write-Log.ps1",
+		"Path": ".\\Write-Log-{0}\\Write-Log.ps1",
 		"Path_f": "$requirement.Version"
+	}
+]
+```
+
+## Download without importing
+
+This is useful when pulling binary files or something else that won't work with the  import (`.`) command.
+
+```json
+[
+	{
+		"Command": "pactester.exe",
+		"Version": "1.3.1",
+		"URL": "https://github.com/pacparser/pacparser/releases/download/{0}/pacparser-{0}-win32.zip",
+		"URL_f": "$requirement.Version",
+		"Path": "{0}\\github_release_cache\\pacparser-{1}-win32\\pactester.exe",
+		"Path_f": "@($env:Temp , $requirement.Version)",
+		"no_import": true
 	}
 ]
 ```
