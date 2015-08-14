@@ -13,7 +13,11 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
             Remove-Item 'requirement.zip'
         }
 
-        Write-Debug "Importing: $($requirement.Path -f (Invoke-Expression $requirement.Path_f))"
-        . ($requirement.Path -f (Invoke-Expression $requirement.Path_f))
+        if ($requirement.no_import) {
+            Write-Debug "NOT Importing: $($requirement.Path -f (Invoke-Expression $requirement.Path_f))"
+        } else {
+            Write-Debug "Importing: $($requirement.Path -f (Invoke-Expression $requirement.Path_f))"
+            . ($requirement.Path -f (Invoke-Expression $requirement.Path_f))
+        }
     }
 }
