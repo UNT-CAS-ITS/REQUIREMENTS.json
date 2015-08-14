@@ -12,11 +12,13 @@ Just put the code from `requirements.ps1` at the top of your script and make a `
 Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.1/requirements.ps1' -UseBasicParsing).Content
 ```
 
-Like obnoxiously short versions of commands? I've got you covered:
+Like obnoxiously short versions of commands? I've got you covered!
 
 ```posh
-iex (iwr 'https://goo.gl/swuuKv' -useb).Content
+iex (iwr 'https://goo.gl/YKshrq' -useb).Content
 ```
+
+[Check the latest release for the latest URL.](https://github.com/UNT-CAS-ITS/REQUIREMENTS.json/releases/latest)
 
 # Sample REQUIREMENTS.json
 
