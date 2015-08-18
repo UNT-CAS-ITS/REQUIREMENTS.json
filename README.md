@@ -4,7 +4,7 @@ This is a simple script that reads a REQUIREMENTS document from a REQUIREMENTS.j
 
 # Usage
 
-Just put the code from `requirements.ps1` at the top of your script and make a `REQUIREMENTS.json` file.
+Just put the code from `requirements.ps1` at the top of your script and make a `REQUIREMENTS.json` file. Alternatively, you could pull the code directly from GitHub ...
 
 ## Pull from GitHub
 
