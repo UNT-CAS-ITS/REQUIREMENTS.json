@@ -9,7 +9,7 @@ Just put the code from `requirements.ps1` at the top of your script and make a `
 ## Pull from GitHub
 
 ```posh
-Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.1/requirements.ps1' -UseBasicParsing).Content
+Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
 ```
 
 Like obnoxiously short versions of commands? I've got you covered!
@@ -19,6 +19,17 @@ iex (iwr 'https://goo.gl/YKshrq' -useb).Content
 ```
 
 [Check the latest release for the latest URL.](https://github.com/UNT-CAS-ITS/REQUIREMENTS.json/releases/latest)
+
+## Pull from GitHub and Cache for a Day
+
+```posh
+$v = '1.2'; $req = "${env:Temp}\github_release_cache\REQUIREMENTS.json-${v}\REQUIREMENTS.ps1"
+if ((-not (Test-Path $req)) -or ((Get-ChildItem $req).CreationTime -lt (Get-Date).AddDays(-1))) {
+    New-Item -ItemType Directory -Path (Split-Path $req -Parent) -Force | Out-Null
+    Invoke-WebRequest "https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v${v}/requirements.ps1" -OutFile $req -UseBasicParsing
+}
+Invoke-Expression (Get-Content $req | Out-String)
+```
 
 # Sample REQUIREMENTS.json
 
