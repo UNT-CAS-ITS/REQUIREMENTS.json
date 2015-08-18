@@ -22,7 +22,7 @@ iex (iwr 'https://goo.gl/YKshrq' -useb).Content
 
 # Sample REQUIREMENTS.json
 
-The `URL_f` and `Path_f` keys are optional. Use them the to format (`-f`) the corresponding keys. The `$requirement` variable refers to the current requirement; this is useful for injecting the value of one key into the value of another. Only `URL` and `Path` use `-f` operators.
+The `URL_f` and `Path_f` keys are optional. Use them to format (`-f`) the corresponding keys. The `$requirement` variable refers to the current requirement; this is useful for injecting the value of one key into the value of another. Only `URL` and `Path` use `-f` operators.
 
 ## Work from Local
 
