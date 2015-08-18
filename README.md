@@ -23,10 +23,12 @@ iex (iwr 'https://goo.gl/YKshrq' -useb).Content
 ## Pull from GitHub and Cache for a Day
 
 ```posh
-$v = '1.2'; $req = "${env:Temp}\github_release_cache\REQUIREMENTS.json-${v}\REQUIREMENTS.ps1"
+$ver = '1.2'
+$req = "${env:Temp}\github_release_cache\REQUIREMENTS.json-${ver}\REQUIREMENTS.ps1"
+$url = "https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v${ver}/requirements.ps1"
 if ((-not (Test-Path $req)) -or ((Get-ChildItem $req).CreationTime -lt (Get-Date).AddDays(-1))) {
     New-Item -ItemType Directory -Path (Split-Path $req -Parent) -Force | Out-Null
-    Invoke-WebRequest "https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v${v}/requirements.ps1" -OutFile $req -UseBasicParsing
+    Invoke-WebRequest $url -OutFile $req -UseBasicParsing
 }
 Invoke-Expression (Get-Content $req | Out-String)
 ```
