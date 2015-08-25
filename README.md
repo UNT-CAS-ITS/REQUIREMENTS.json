@@ -47,7 +47,8 @@ The `URL_f` and `Path_f` keys are optional. Use them to format (`-f`) the corres
 		"URL": "https://github.com/UNT-CAS-ITS/Write-Log/archive/v{0}.zip",
 		"URL_f": "$requirement.Version",
 		"Path": ".\\Write-Log-{0}\\Write-Log.ps1",
-		"Path_f": "$requirement.Version"
+		"Path_f": "$requirement.Version",
+		"Import": "."
 	}
 ]
 ```
@@ -64,8 +65,7 @@ This is useful when pulling binary files or something else that won't work with 
 		"URL": "https://github.com/pacparser/pacparser/releases/download/{0}/pacparser-{0}-win32.zip",
 		"URL_f": "$requirement.Version",
 		"Path": "{0}\\github_release_cache\\pacparser-{1}-win32\\pactester.exe",
-		"Path_f": "@($env:Temp , $requirement.Version)",
-		"no_import": true
+		"Path_f": "@($env:Temp , $requirement.Version)"\
 	}
 ]
 ```
