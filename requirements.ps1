@@ -16,6 +16,18 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
     $Import = $requirement.Import -f $Import_f
     Write-Debug "[REQUIREMENTS.json] Import: $Import"
 
+    if ($requirement.Import -eq '.' -and (Test-Path $Path)) {
+        Write-Debug "[REQUIREMENTS.json] Importing: ${Path}"
+        . $Path
+    } elseif ($requirement.Import) {
+        Write-Debug "[REQUIREMENTS.json] ``Import`` command: ${Import}"
+        try {
+            Invoke-Expression $Import
+        } catch {
+            Write-Debug "[REQUIREMENTS.json] `Import` failed: $_"
+        }
+    }
+
     $command_valid = $false
     try {
         if ($Command.Contains(' ')) {
@@ -27,7 +39,7 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
         Write-Debug '[REQUIREMENTS.json] `Command` Successful'
         $command_valid = $true
     } catch {
-        Write-Debug "[REQUIREMENTS.json] `Command` doesn't exist: $_"
+        Write-Debug "[REQUIREMENTS.json] ``Command`` doesn't exist: $_"
         Write-Debug '[REQUIREMENTS.json] Trying it as expression ...'
         try {
             if (Resolve-Path $Command) {
@@ -40,7 +52,7 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
             $command_valid = $true
         } catch {
             if ($Path.EndsWith('\') -and (Test-Path $Path)) {
-                Write-Debug "[REQUIREMENTS.json] `Command` expression failed: $_"
+                Write-Debug "[REQUIREMENTS.json] ``Command`` expression failed: $_"
                 Write-Debug '[REQUIREMENTS.json] Trying it from `Path` ...'
                 Push-Location $Path
                 
@@ -54,7 +66,7 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
 
                     $command_valid = $true
                 } catch {
-                    Write-Debug "[REQUIREMENTS.json] `Command` expression failed: $_"
+                    Write-Debug "[REQUIREMENTS.json] ``Command`` expression failed: $_"
                 }
 
                 Pop-Location
@@ -73,20 +85,33 @@ foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Ou
             Write-Debug "[REQUIREMENTS.json] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
             Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
 
-            if (Test-Path $Path) {
-                Write-Debug '[REQUIREMENTS.json] Deleting current `Path`'
-                Remove-Item $Path -Force -Recurse
+            if (Test-Path (Split-Path $Path -Parent)) {
+                Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
+                Remove-Item (Split-Path $Path -Parent) -Force -Recurse
             }
 
             if ($Path.EndsWith('\')) {
+                if (Test-Path $Path) {
+                    Write-Debug '[REQUIREMENTS.json] Deleting current `Path`'
+                    Remove-Item $Path -Force -Recurse
+                }
+
                 $Parent = Split-Path $Path -Parent
             } else {
+                if (Test-Path (Split-Path $Path -Parent)) {
+                    Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
+                    Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+                }
+
                 $Parent = Split-Path (Split-Path $Path -Parent) -Parent
             }
-            New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
+            
+            if (-not (Test-Path $Parent)) {
+                New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
+            }
 
             Add-Type -Assembly 'System.IO.Compression.FileSystem'
-            Write-Debug "[REQUIREMENTS.json] Unzipping the ZipFile"
+            Write-Debug "[REQUIREMENTS.json] Unzipping the ZipFile to: ${Parent}"
             [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
 
             Write-Debug "[REQUIREMENTS.json] Deleting the ZipFile"
