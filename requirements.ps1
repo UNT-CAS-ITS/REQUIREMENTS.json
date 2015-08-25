@@ -1,23 +1,111 @@
-foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Out-String))) {
-    Write-Debug ($requirement | Out-String)
-    if (-not (Get-Command $requirement.Command -ErrorAction Ignore)) {
-        if (-not (Test-Path ($requirement.Path -f (Invoke-Expression $requirement.Path_f)) -ErrorAction Ignore)) {
-            Invoke-WebRequest ($requirement.URL -f (Invoke-Expression $requirement.URL_f)) -OutFile 'requirement.zip' -UseBasicParsing
+$ErrorActionPreference = 'Stop'
 
-            $Parent = (Split-Path (Split-Path ($requirement.Path -f (Invoke-Expression $requirement.Path_f)) -Parent) -Parent)
+foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Out-String))) {
+    Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
+
+    $Command_f = if ($requirement.Command_f) { Invoke-Expression $requirement.Command_f } else { '' }
+    $Command = $requirement.Command -f $Command_f
+    Write-Debug "[REQUIREMENTS.json] Command: $Command"
+    $URL_f = if ($requirement.URL_f) { Invoke-Expression $requirement.URL_f } else { '' }
+    $URL = $requirement.URL -f $URL_f
+    Write-Debug "[REQUIREMENTS.json] URL: $URL"
+    $Path_f = if ($requirement.Path_f) { Invoke-Expression $requirement.Path_f } else { '' }
+    $Path = $requirement.Path -f $Path_f
+    Write-Debug "[REQUIREMENTS.json] Path: $Path"
+    $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
+    $Import = $requirement.Import -f $Import_f
+    Write-Debug "[REQUIREMENTS.json] Import: $Import"
+
+    $command_valid = $false
+    try {
+        if ($Command.Contains(' ')) {
+            # Get-Command doesn't error if $Command contains a space.
+            Throw('Commands should never contain a space.')
+        }
+        Get-Command $Command | Out-Null
+
+        Write-Debug '[REQUIREMENTS.json] `Command` Successful'
+        $command_valid = $true
+    } catch {
+        Write-Debug "[REQUIREMENTS.json] `Command` doesn't exist: $_"
+        Write-Debug '[REQUIREMENTS.json] Trying it as expression ...'
+        try {
+            if (Resolve-Path $Command) {
+                Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
+            } else {
+                Invoke-Expression $Command | Out-Null
+                Write-Debug '[REQUIREMENTS.json] Expression Successful'
+            }
+
+            $command_valid = $true
+        } catch {
+            if ($Path.EndsWith('\') -and (Test-Path $Path)) {
+                Write-Debug "[REQUIREMENTS.json] `Command` expression failed: $_"
+                Write-Debug '[REQUIREMENTS.json] Trying it from `Path` ...'
+                Push-Location $Path
+                
+                try {
+                    if (Resolve-Path $Command) {
+                        Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
+                    } else {
+                        Invoke-Expression $Command | Out-Null
+                        Write-Debug '[REQUIREMENTS.json] Expression Successful'
+                    }
+
+                    $command_valid = $true
+                } catch {
+                    Write-Debug "[REQUIREMENTS.json] `Command` expression failed: $_"
+                }
+
+                Pop-Location
+            } else {
+                Write-Debug '[REQUIREMENTS.json] `Command` expression failed; will download the requirement ...'
+            }
+        }
+    }
+
+    if (-not $command_valid) {
+        Write-Debug '[REQUIREMENTS.json] Downloading the requirement ...'
+        if ($URL.EndsWith('.zip')) {
+            Write-Debug '[REQUIREMENTS.json] URL is ZipFile'
+            $zip_guid = [GUID]::NewGUID()
+
+            Write-Debug "[REQUIREMENTS.json] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
+            Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
+
+            if (Test-Path $Path) {
+                Write-Debug '[REQUIREMENTS.json] Deleting current `Path`'
+                Remove-Item $Path -Force -Recurse
+            }
+
+            if ($Path.EndsWith('\')) {
+                $Parent = Split-Path $Path -Parent
+            } else {
+                $Parent = Split-Path (Split-Path $Path -Parent) -Parent
+            }
             New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
 
             Add-Type -Assembly 'System.IO.Compression.FileSystem'
-            [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path 'requirement.zip'), (Resolve-Path $Parent))
+            Write-Debug "[REQUIREMENTS.json] Unzipping the ZipFile"
+            [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
 
-            Remove-Item 'requirement.zip'
+            Write-Debug "[REQUIREMENTS.json] Deleting the ZipFile"
+            Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
+        } else {
+            Write-Debug '[REQUIREMENTS.json] URL is File'
+            $Parent = Split-Path $Path -Parent
+            New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
+
+            Write-Debug '[REQUIREMENTS.json] Downloading to `Path`'
+            Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
         }
 
-        if ($requirement.no_import) {
-            Write-Debug "NOT Importing: $($requirement.Path -f (Invoke-Expression $requirement.Path_f))"
-        } else {
-            Write-Debug "Importing: $($requirement.Path -f (Invoke-Expression $requirement.Path_f))"
-            . ($requirement.Path -f (Invoke-Expression $requirement.Path_f))
+        if ($requirement.Import -eq '.') {
+            Write-Debug "[REQUIREMENTS.json] Importing: ${Path}"
+            . $Path
+        } elseif ($requirement.Import) {
+            Write-Debug "[REQUIREMENTS.json] Import Command: ${Import}"
+            Invoke-Expression $Import
         }
     }
 }
