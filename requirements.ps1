@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Out-String))) {
+foreach ($requirement in (ConvertFrom-Json (Get-Content "$(Split-Path $MyInvocation.MyCommand.Path -Parent)\REQUIREMENTS.json" | Out-String))) {
     Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
 
     foreach ($i in 1..2) {
