@@ -10,7 +10,7 @@ Example `REQUIREMENTS.json`:
         "Source": "https://gallery.technet.microsoft.com/scriptcenter/Get-Deeply-Nested-Files-a2148fd7",
         "Version": "2014.01.16",
         "URL": "https://gallery.technet.microsoft.com/scriptcenter/Get-Deeply-Nested-Files-a2148fd7/file/107404/1/Get-FolderItem.ps1",
-        "Path": "{0}\\github_release_cache\\Get-FolderItem-{1}\\",
+        "Path": "{0}\\github_release_cache\\Get-FolderItem-{1}\\Get-FolderItem.ps1",
         "Path_f": "@($env:Temp , $requirement.Version)",
         "Import": "."
     }
