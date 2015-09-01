@@ -3,17 +3,24 @@ $ErrorActionPreference = 'Stop'
 foreach ($requirement in (ConvertFrom-Json (Get-Content .\REQUIREMENTS.json | Out-String))) {
     Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
 
-    $Command_f = if ($requirement.Command_f) { Invoke-Expression $requirement.Command_f } else { '' }
-    $Command = $requirement.Command -f $Command_f
+    foreach ($i in 1..2) {
+        # Running through this twice will ensure our `_f` variables are evaluated; regardless of the order.
+        # Example: "Command_f": "$Path"
+        $Command_f = if ($requirement.Command_f) { Invoke-Expression $requirement.Command_f } else { '' }
+        $Command = $requirement.Command -f $Command_f
+        
+        $URL_f = if ($requirement.URL_f) { Invoke-Expression $requirement.URL_f } else { '' }
+        $URL = $requirement.URL -f $URL_f
+        
+        $Path_f = if ($requirement.Path_f) { Invoke-Expression $requirement.Path_f } else { '' }
+        $Path = $requirement.Path -f $Path_f
+        
+        $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
+        $Import = $requirement.Import -f $Import_f
+    }
     Write-Debug "[REQUIREMENTS.json] Command: $Command"
-    $URL_f = if ($requirement.URL_f) { Invoke-Expression $requirement.URL_f } else { '' }
-    $URL = $requirement.URL -f $URL_f
     Write-Debug "[REQUIREMENTS.json] URL: $URL"
-    $Path_f = if ($requirement.Path_f) { Invoke-Expression $requirement.Path_f } else { '' }
-    $Path = $requirement.Path -f $Path_f
     Write-Debug "[REQUIREMENTS.json] Path: $Path"
-    $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
-    $Import = $requirement.Import -f $Import_f
     Write-Debug "[REQUIREMENTS.json] Import: $Import"
 
     if ($requirement.Import -eq '.' -and (Test-Path $Path)) {
