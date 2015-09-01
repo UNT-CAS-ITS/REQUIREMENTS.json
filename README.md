@@ -1,6 +1,18 @@
 This is a simple script that reads a REQUIREMENTS document from a REQUIREMENTS.json file and does the necessary installs.
 
-Example `REQUIREMENTS.json`:
+Check out the wiki on this repo for usage and information about required, optional, and custom keys.
+
+# Quick Start
+
+Add this line to the top of your script:
+
+```powershell
+Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
+```
+
+Create a `REQUIREMENTS.json` file and put it in the same directory as your script.
+
+# Example REQUIREMENTS.json
 
 ```json
 [
@@ -16,5 +28,3 @@ Example `REQUIREMENTS.json`:
     }
 ]
 ```
-
-Check out the wiki on this repo for usage and information about required, optional, and custom keys.
