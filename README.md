@@ -60,12 +60,13 @@ This is useful when pulling binary files or something else that won't work with 
 ```json
 [
 	{
-		"Command": "pactester.exe",
-		"Version": "1.3.1",
-		"URL": "https://github.com/pacparser/pacparser/releases/download/{0}/pacparser-{0}-win32.zip",
-		"URL_f": "$requirement.Version",
-		"Path": "{0}\\github_release_cache\\pacparser-{1}-win32\\pactester.exe",
-		"Path_f": "@($env:Temp , $requirement.Version)"\
+	        "Command": "{0}\\pactester.exe",
+	        "Command_f": "$Path",
+	        "Version": "1.3.1",
+	        "URL": "https://github.com/pacparser/pacparser/releases/download/{0}/pacparser-{0}-win32.zip",
+	        "URL_f": "$requirement.Version",
+	        "Path": "{0}\\github_release_cache\\pacparser-{1}-win32\\",
+	        "Path_f": "@($env:Temp , $requirement.Version)"
 	}
 ]
 ```
