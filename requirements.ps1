@@ -1,6 +1,9 @@
 $ErrorActionPreference = 'Stop'
+$my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
 
-foreach ($requirement in (ConvertFrom-Json (Get-Content "$(Split-Path $MyInvocation.MyCommand.Path -Parent)\REQUIREMENTS.json" | Out-String))) {
+Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" | Out-String))
+
+foreach ($requirement in $global:REQUIREMENTS) {
     Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
 
     foreach ($i in 1..2) {
