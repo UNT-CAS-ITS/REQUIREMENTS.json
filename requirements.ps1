@@ -1,14 +1,33 @@
 $ErrorActionPreference = 'Stop'
+
 $my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
+Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
+$my_path = 'C:\Users\Raymond\Git\scriptbot\remove-oldfilesfromfolder'
+Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
 
-Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" | Out-String))
+try {
+    Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" | Out-String))
+} catch {
+    $msg = @"
+The global:REQUIREMENTS variable probably already exists and needs to be deleted.
+It is required for this script to supply your with the evaluated/used variable results.
+Your delete with this command: ``Remove-Variable `$global:REQUIREMENTS -Force``
+Error: $_
+"@
+    Throw($msg)
+}
 
+Write-Debug "[REQUIREMENTS.json] global:REQUIREMENTS: $($global:REQUIREMENTS | Out-String)"
+
+# Reformat `$global:REQUIREMENTS` to something useful 
+$i = 0
 foreach ($requirement in $global:REQUIREMENTS) {
     Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
 
-    foreach ($i in 1..2) {
+    foreach ($j in 1..2) {
         # Running through this twice will ensure our `_f` variables are evaluated; regardless of the order.
         # Example: "Command_f": "$Path"
+
         $Command_f = if ($requirement.Command_f) { Invoke-Expression $requirement.Command_f } else { '' }
         $Command = $requirement.Command -f $Command_f
         
@@ -21,18 +40,37 @@ foreach ($requirement in $global:REQUIREMENTS) {
         $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
         $Import = $requirement.Import -f $Import_f
     }
-    Write-Debug "[REQUIREMENTS.json] Command: $Command"
-    Write-Debug "[REQUIREMENTS.json] URL: $URL"
-    Write-Debug "[REQUIREMENTS.json] Path: $Path"
-    Write-Debug "[REQUIREMENTS.json] Import: $Import"
 
-    if ($requirement.Import -eq '.' -and (Test-Path $Path)) {
-        Write-Debug "[REQUIREMENTS.json] Importing: ${Path}"
-        . $Path
+    # Set final expected variables to global.
+    $global:REQUIREMENTS[$i].Command = $Command
+    $global:REQUIREMENTS[$i].URL = $URL
+    $global:REQUIREMENTS[$i].Path = $Path
+    $global:REQUIREMENTS[$i].Import = $Import
+    
+    # Clear out `_f` variables from the global variable. We only want the final variables in global.
+    $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Command_f')
+    $global:REQUIREMENTS[$i].PSObject.Properties.Remove('URL_f')
+    $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Path_f')
+    $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Import_f')
+
+    $i++
+}
+
+# Make `$global:REQUIREMENTS` readonly.
+# Chose RO instead of Constant so you developers can clear it out if they want to:
+# Remove-Variable $global:REQUIREMENTS -Force
+Set-Variable 'REQUIREMENTS' -Scope 'global' -Option 'ReadOnly' -Value $global:REQUIREMENTS
+
+foreach ($requirement in $global:REQUIREMENTS) {
+    Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
+
+    if ($requirement.Import -eq '.' -and (Test-Path $requirement.Path)) {
+        Write-Debug "[REQUIREMENTS.json] Importing: $($requirement.Path)"
+        . $requirement.Path
     } elseif ($requirement.Import) {
-        Write-Debug "[REQUIREMENTS.json] ``Import`` command: ${Import}"
+        Write-Debug "[REQUIREMENTS.json] ``Import`` command: $($requirement.Import)"
         try {
-            Invoke-Expression $Import
+            Invoke-Expression $requirement.Import
         } catch {
             Write-Debug "[REQUIREMENTS.json] `Import` failed: $_"
         }
@@ -40,11 +78,11 @@ foreach ($requirement in $global:REQUIREMENTS) {
 
     $command_valid = $false
     try {
-        if ($Command.Contains(' ')) {
-            # Get-Command doesn't error if $Command contains a space.
+        if ($requirement.Command.Contains(' ')) {
+            # Get-Command doesn't error if $requirement.Command contains a space.
             Throw('Commands should never contain a space.')
         }
-        Get-Command $Command | Out-Null
+        Get-Command $requirement.Command | Out-Null
 
         Write-Debug '[REQUIREMENTS.json] `Command` Successful'
         $command_valid = $true
@@ -52,25 +90,25 @@ foreach ($requirement in $global:REQUIREMENTS) {
         Write-Debug "[REQUIREMENTS.json] ``Command`` doesn't exist: $_"
         Write-Debug '[REQUIREMENTS.json] Trying it as expression ...'
         try {
-            if (Resolve-Path $Command) {
+            if (Resolve-Path $requirement.Command) {
                 Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
             } else {
-                Invoke-Expression $Command | Out-Null
+                Invoke-Expression $requirement.Command | Out-Null
                 Write-Debug '[REQUIREMENTS.json] Expression Successful'
             }
 
             $command_valid = $true
         } catch {
-            if ($Path.EndsWith('\') -and (Test-Path $Path)) {
+            if ($requirement.Path.EndsWith('\') -and (Test-Path $requirement.Path)) {
                 Write-Debug "[REQUIREMENTS.json] ``Command`` expression failed: $_"
                 Write-Debug '[REQUIREMENTS.json] Trying it from `Path` ...'
-                Push-Location $Path
+                Push-Location $requirement.Path
                 
                 try {
-                    if (Resolve-Path $Command) {
+                    if (Resolve-Path $requirement.Command) {
                         Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
                     } else {
-                        Invoke-Expression $Command | Out-Null
+                        Invoke-Expression $requirement.Command | Out-Null
                         Write-Debug '[REQUIREMENTS.json] Expression Successful'
                     }
 
@@ -88,36 +126,36 @@ foreach ($requirement in $global:REQUIREMENTS) {
 
     if (-not $command_valid) {
         Write-Debug '[REQUIREMENTS.json] Downloading the requirement ...'
-        if ($URL.EndsWith('.zip')) {
+        if ($requirement.URL.EndsWith('.zip')) {
             Write-Debug '[REQUIREMENTS.json] URL is ZipFile'
             $zip_guid = [GUID]::NewGUID()
 
             Write-Debug "[REQUIREMENTS.json] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
-            Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
+            Invoke-WebRequest $requirement.URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
 
-            if (Test-Path (Split-Path $Path -Parent)) {
+            if (Test-Path (Split-Path $requirement.Path -Parent)) {
                 Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
-                Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+                Remove-Item (Split-Path $requirement.Path -Parent) -Force -Recurse
             }
 
-            if ($Path.EndsWith('\')) {
-                if (Test-Path $Path) {
+            if ($requirement.Path.EndsWith('\')) {
+                if (Test-Path $requirement.Path) {
                     Write-Debug '[REQUIREMENTS.json] Deleting current `Path`'
-                    Remove-Item $Path -Force -Recurse
+                    Remove-Item $requirement.Path -Force -Recurse
                 }
 
-                $Parent = Split-Path $Path -Parent
+                $Parent = Split-Path $requirement.Path -Parent
             } else {
-                if (Test-Path (Split-Path $Path -Parent)) {
+                if (Test-Path (Split-Path $requirement.Path -Parent)) {
                     Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
-                    Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+                    Remove-Item (Split-Path $requirement.Path -Parent) -Force -Recurse
                 }
 
-                $Parent = Split-Path (Split-Path $Path -Parent) -Parent
+                $Parent = Split-Path (Split-Path $requirement.Path -Parent) -Parent
             }
             
             if (-not (Test-Path $Parent)) {
-                New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
+                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "Created Directory: $_" }
             }
 
             Add-Type -Assembly 'System.IO.Compression.FileSystem'
@@ -128,19 +166,21 @@ foreach ($requirement in $global:REQUIREMENTS) {
             Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
         } else {
             Write-Debug '[REQUIREMENTS.json] URL is File'
-            $Parent = Split-Path $Path -Parent
-            New-Item -ItemType Directory -Force -Path $Parent | Write-Debug
+            $Parent = Split-Path $requirement.Path -Parent
+            if (-not (Test-Path $Parent)) {
+                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "Created Directory: $_" }
+            }
 
             Write-Debug '[REQUIREMENTS.json] Downloading to `Path`'
-            Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+            Invoke-WebRequest $requirement.URL -OutFile $requirement.Path -UseBasicParsing
         }
 
         if ($requirement.Import -eq '.') {
-            Write-Debug "[REQUIREMENTS.json] Importing: ${Path}"
-            . $Path
+            Write-Debug "[REQUIREMENTS.json] Importing: $($requirement.Path)"
+            . $requirement.Path
         } elseif ($requirement.Import) {
-            Write-Debug "[REQUIREMENTS.json] Import Command: ${Import}"
-            Invoke-Expression $Import
+            Write-Debug "[REQUIREMENTS.json] Import Command: $($requirement.Import)"
+            Invoke-Expression $requirement.Import
         }
     }
 }
