@@ -9,7 +9,7 @@ try {
     $msg = @"
 The global:REQUIREMENTS variable probably already exists and needs to be deleted.
 It is required for this script to supply your with the evaluated/used variable results.
-Your delete with this command: ``Remove-Variable `$global:REQUIREMENTS -Force``
+Your delete with this command: ``Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force``
 Error: $_
 "@
     Throw($msg)
@@ -56,7 +56,7 @@ foreach ($requirement in $global:REQUIREMENTS) {
 
 # Make `$global:REQUIREMENTS` readonly.
 # Chose RO instead of Constant so you developers can clear it out if they want to:
-# Remove-Variable $global:REQUIREMENTS -Force
+# Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force
 Set-Variable 'REQUIREMENTS' -Scope 'global' -Option 'ReadOnly' -Value $global:REQUIREMENTS
 
 foreach ($requirement in $global:REQUIREMENTS) {
