@@ -18,7 +18,6 @@ Create a `REQUIREMENTS.json` file and put it in the same directory as your scrip
 [
     {
         "Command": "Get-FolderItem",
-        "Version": "2014.01.16",
         "URL": "https://gallery.technet.microsoft.com/scriptcenter/Get-Deeply-Nested-Files-a2148fd7/file/107404/1/Get-FolderItem.ps1",
         "Path": ".\\Get-FolderItem.ps1",
         "Import": "."
