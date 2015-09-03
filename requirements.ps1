@@ -1,18 +1,22 @@
-$ErrorActionPreference = 'Stop'
-
 $my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
 Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
 
 try {
-    Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" | Out-String))
-} catch {
-    $msg = @"
-The global:REQUIREMENTS variable probably already exists and needs to be deleted.
-It is required for this script to supply your with the evaluated/used variable results.
-Your delete with this command: ``Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force``
-Error: $_
+    Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" -ErrorAction Stop | Out-String) -ErrorAction Stop) -ErrorAction Stop
+} catch [System.Management.Automation.SessionStateUnauthorizedAccessException] {
+    Write-Warning @"
+The global:REQUIREMENTS variable likely already exists and needs to be deleted.
+The global:REQUIREMENTS variable is a required part of REQUIREMENTS.json; it supplies you with the evaluated/used variable results.
+More information:  https://github.com/Vertigion/REQUIREMENTS.json/wiki/global:REQUIREMENTS
+You can delete with the variable with this command: ``Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force``
 "@
-    Throw($msg)
+    Throw $error[0]
+} catch [System.ArgumentException] {
+    Write-Warning @"
+Your REQUIREMENTS.json file likely contains invalid JSON (review the error following this message to be sure).
+There are many free services online for JSON validation; my favorite: http://jsonlint.com
+"@
+    Throw $error[0]
 }
 
 Write-Debug "[REQUIREMENTS.json] global:REQUIREMENTS: $($global:REQUIREMENTS | Out-String)"
@@ -55,7 +59,7 @@ foreach ($requirement in $global:REQUIREMENTS) {
 }
 
 # Make `$global:REQUIREMENTS` readonly.
-# Chose RO instead of Constant so you developers can clear it out if they want to:
+# Chose RO instead of Constant so developers can clear it out if they want to:
 # Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force
 Set-Variable 'REQUIREMENTS' -Scope 'global' -Option 'ReadOnly' -Value $global:REQUIREMENTS
 
