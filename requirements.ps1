@@ -2,8 +2,6 @@ $ErrorActionPreference = 'Stop'
 
 $my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
 Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
-$my_path = 'C:\Users\Raymond\Git\scriptbot\remove-oldfilesfromfolder'
-Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
 
 try {
     Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" | Out-String))
