@@ -205,11 +205,27 @@ function Join-RequirementPathCommand ($Path, $Command) {
 Write-Debug "[REQUIREMENTS.json] MyInvocation.MyCommand.Path: $($MyInvocation.MyCommand.Path)"
 Write-Debug "[REQUIREMENTS.json] Get-Location: $(Get-Location)"
 
-$my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
-Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
+$REQUIREMENTS_json_path = "$(Split-Path $MyInvocation.MyCommand.Path -Parent)\REQUIREMENTS.json"
+$REQUIREMENTS_json_pwd = "$(Get-Location)\REQUIREMENTS.json"
 
 try {
-    Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json (Get-Content "${my_path}\REQUIREMENTS.json" -ErrorAction Stop | Out-String) -ErrorAction Stop) -ErrorAction Stop
+    $REQUIREMENTS_json = Get-Content $REQUIREMENTS_json_path -ErrorAction Stop
+} catch [System.Management.Automation.ItemNotFoundException] {
+    Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${REQUIREMENTS_json_path}"
+    try {
+    $REQUIREMENTS_json = Get-Content $REQUIREMENTS_json_pwd -ErrorAction Stop
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${REQUIREMENTS_json_pwd}"
+        Throw [System.Management.Automation.ItemNotFoundException] @"
+[REQUIREMENTS.json] Cannot find 'REQUIREMENTS.json' because it does not exist in the following locations:
+    $REQUIREMENTS_json_path
+    $REQUIREMENTS_json_pwd
+"@
+    }
+}
+
+try {
+    Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json ($REQUIREMENTS_json | Out-String) -ErrorAction Stop) -ErrorAction Stop
 } catch [System.Management.Automation.SessionStateUnauthorizedAccessException] {
     Write-Warning @"
 The global:REQUIREMENTS variable likely already exists and needs to be deleted.
