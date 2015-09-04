@@ -198,6 +198,13 @@ function Join-RequirementPathCommand ($Path, $Command) {
     return $PathCommand
 }
 
+############################################################################
+# Start of Script Logic
+############################################################################
+
+Write-Debug "[REQUIREMENTS.json] MyInvocation.MyCommand.Path: $($MyInvocation.MyCommand.Path)"
+Write-Debug "[REQUIREMENTS.json] Get-Location: $(Get-Location)"
+
 $my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
 Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
 
