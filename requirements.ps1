@@ -1,3 +1,203 @@
+function Get-RequirementCommand ($Command, $Path, $Import) {
+    if ($Command.Contains(' ') -and -not ($Command.StartsWith('"') -or $Command.StartsWith(''''))) {
+        # Get-Command doesn't error if $Command contains a space.
+        Throw('[REQUIREMENTS.json][Get-RequirementCommand] Command should not contain a space; can bypass this by wrapping Command in quotes')
+    }
+
+    switch -wildcard ($Import) {
+        '.' {
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] File import expects `Path` to be the FullPath to the file (.ps1).'
+
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Command` exist?'
+            if (Get-Command $Command -ErrorAction Ignore) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists.'
+                return $Command
+            }
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` doesn''t exist.'
+        }
+        'Import-Module *' {
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Import-Module expects path to be the FullPath to the module (.psm1/.psd1) file.'
+
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Path` exist?'
+            if (Test-Path $Path) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` exists.'
+                return $Command
+            }
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` doesn''t exist.'
+        }
+        $null {
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Likely a binary file. Check that `Path` + `Command` exists.'
+            $PathCommand = Join-RequirementPathCommand -Path $Path -Command $Command
+
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Path` + `Command` exist?'
+            if (Test-Path $PathCommand) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` + `Command` exists.'
+                return $PathCommand
+            }
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` + `Command` doesn''t exist.'
+        }
+        default {
+            Write-Debug "[REQUIREMENTS.json][Get-RequirementCommand] ``Import`` unhandled; check Verbose output for more information."
+            Write-Verbose @"
+[REQUIREMENTS.json][Get-RequirementCommand] ``Import`` unhandled.
+Assuming your ``Command``, ``Import``, and ``Path`` will just work.
+If that doesn't work, check for and/or submit an issue: https://github.com/Vertigion/REQUIREMENTS.json/issues
+Include this verbose message and your REQUIREMENTS.json file contents.
+Import: ${Import}
+Import.GetType(): $($Import.GetType())
+Import.GetType().FullName: $($Import.GetType().FullName)
+Current global:REQUIREMENTS:
+$($global:REQUIREMENTS | Format-List | Out-String)
+"@
+            if (Test-Path $Command) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a file.'
+                return $Command
+            } elseif (Get-Command $Command -ErrorAction Ignore) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a command.'
+                return $Command
+            }
+        }
+    }
+
+    return $false
+}
+
+function Invoke-RequirementDownload ($URL, $Path) {
+    if ($URL.EndsWith('.zip')) {
+        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] URL is ZipFile'
+        $zip_guid = [GUID]::NewGUID()
+
+        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
+        Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
+
+        if (Test-Path (Split-Path $Path -Parent)) {
+            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
+            Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+        }
+
+        if ($Path.EndsWith('\')) {
+            if (Test-Path $Path) {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path`'
+                Remove-Item $Path -Force -Recurse
+            }
+
+            $Parent = Split-Path $Path -Parent
+        } else {
+            if (Test-Path (Split-Path $Path -Parent)) {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
+                Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+            }
+
+            $Parent = Split-Path (Split-Path $Path -Parent) -Parent
+        }
+        
+        if (-not (Test-Path $Parent)) {
+            New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
+        }
+
+        Add-Type -Assembly 'System.IO.Compression.FileSystem'
+        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Unzipping the ZipFile to: ${Parent}"
+        [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
+
+        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting the ZipFile"
+        Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
+    } else {
+        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] URL is not a ZipFile'
+        $Parent = Split-Path $Path -Parent
+        if (-not (Test-Path $Parent)) {
+            New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
+        }
+
+        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
+        Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+    }
+}
+
+function Invoke-RequirementImport ($Import, $Path) {
+    switch -wildcard ($Import) {
+        '.' {
+            if (Test-Path $Path) {
+                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Importing: . ${Path}"
+                # Importing within a function keeps imports within the scope of the funtion
+                return ". ""${Path}"""
+            } else {
+                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Unable to Import (``Path`` doesn't exist): . ${Path}"
+            }
+        }
+        'Import-Module *' {
+            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Import-Module expects path to be the FullPath to the module (.psm1/.psd1) file.'
+
+            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Does `Path` exist?'
+            if (Test-Path $Path) {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` exists.'
+                try {
+                    # Importing within a modules within a function is fine.
+                    Invoke-Expression $Import -ErrorAction Stop
+
+                    return $true
+                } catch {
+                    Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
+                }
+            } else {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` doesn''t exist.'
+            }
+        }
+        $null {
+            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Likely a binary file. Do nothing.'
+        }
+        default {
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] ``Import`` unhandled; check Verbose output for more information."
+            Write-Verbose @"
+[REQUIREMENTS.json][Invoke-RequirementImport] ``Import`` unhandled.
+Assuming your ``Import`` will just work within ``Invoke-Expression``.
+If that doesn't work, check for and/or submit an issue: https://github.com/Vertigion/REQUIREMENTS.json/issues
+Include this verbose message and your REQUIREMENTS.json file contents.
+Import: ${Import}
+Import.GetType(): $($Import.GetType())
+Import.GetType().FullName: $($Import.GetType().FullName)
+Current global:REQUIREMENTS:
+$($global:REQUIREMENTS | Format-List | Out-String)
+"@
+            if ($Invoke -contains $Path) {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` detected in `Import`.'
+                
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Does `Path` exist?'
+                if (Test-Path $Path) {
+                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` exists.'
+                    try {
+                        Invoke-Expression $Import -ErrorAction Stop
+                        return $Import
+                    } catch {
+                        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
+                    }
+                } else {
+                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` doesn''t exist.'
+                }
+            }
+            try {
+                Invoke-Expression "try { ${Import} } catch { Write-Debug ""[REQUIREMENTS.json][Invoke-RequirementImport] `Import` failed: $_"" }" -ErrorAction Stop
+                return $Import
+            } catch {
+                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
+            }
+        }
+    }
+
+    return $false
+}
+
+function Join-RequirementPathCommand ($Path, $Command) {
+    if ($Command.StartsWith('"')) {
+        $PathCommand = Join-Path $Path $Command.Trim('"')
+    } elseif ($Command.StartsWith('''')) {
+        $PathCommand = Join-Path $Path $Command.Trim('''')
+    } else {
+        $PathCommand = Join-Path $Path $Command
+    }
+    Write-Debug "[REQUIREMENTS.json][Get-RequirementCommand] ``Path`` + ``Command``: ${PathCommand}"
+    return $PathCommand
+}
+
 $my_path = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
 Write-Debug "[REQUIREMENTS.json] My Path: ${my_path}"
 
@@ -39,21 +239,88 @@ foreach ($requirement in $global:REQUIREMENTS) {
         $Path_f = if ($requirement.Path_f) { Invoke-Expression $requirement.Path_f } else { '' }
         $Path = $requirement.Path -f $Path_f
         
-        $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
-        $Import = $requirement.Import -f $Import_f
+        if ($requirement.Import) {
+            $Import_f = if ($requirement.Import_f) { Invoke-Expression $requirement.Import_f } else { '' }
+            $Import = $requirement.Import -f $Import_f
+        }
     }
 
     # Set final expected variables to global.
     $global:REQUIREMENTS[$i].Command = $Command
     $global:REQUIREMENTS[$i].URL = $URL
     $global:REQUIREMENTS[$i].Path = $Path
-    $global:REQUIREMENTS[$i].Import = $Import
+    if ($global:REQUIREMENTS[$i].Import) {
+        $global:REQUIREMENTS[$i].Import = $Import
+    }
     
     # Clear out `_f` variables from the global variable. We only want the final variables in global.
     $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Command_f')
     $global:REQUIREMENTS[$i].PSObject.Properties.Remove('URL_f')
     $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Path_f')
     $global:REQUIREMENTS[$i].PSObject.Properties.Remove('Import_f')
+
+    Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
+
+    Write-Debug '[REQUIREMENTS.json] Attempting to import the requirement ...'
+    $Import = Invoke-RequirementImport -Import $requirement.Import -Path $requirement.Path
+    if ($Import -is 'bool') {
+        if ($Import) {
+            Write-Debug '[REQUIREMENTS.json] Import Successful'
+        } else {
+            Write-Debug '[REQUIREMENTS.json] Import Unsuccessful'
+        }
+    } else {
+        try {
+            Invoke-Expression $Import -ErrorAction Stop
+        } catch {
+            Write-Debug "[REQUIREMENTS.json] Import Unsuccessful: $_"
+        }
+    }
+
+    Write-Debug '[REQUIREMENTS.json] Test if `Command` exists ...'
+    $Command = Get-RequirementCommand -Command $requirement.Command -Path $requirement.Path -Import $requirement.Import
+
+    if ($Command) {
+        Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
+        $global:REQUIREMENTS[$i].Command = $Command
+    } else {
+        Write-Debug '[REQUIREMENTS.json] `Command` does NOT exist.'
+
+        Write-Debug '[REQUIREMENTS.json] Downloading the requirement ...'
+        Invoke-RequirementDownload -URL $requirement.URL -Path $requirement.Path
+
+        Write-Debug '[REQUIREMENTS.json] Importing the requirement ...'
+        $Import = Invoke-RequirementImport -Import $requirement.Import -Path $requirement.Path
+        if ($Import -is 'bool') {
+            if ($Import) {
+                Write-Debug '[REQUIREMENTS.json] Import Successful'
+            } else {
+                Write-Debug '[REQUIREMENTS.json] Import Unsuccessful'
+            }
+        } else {
+            try {
+                Invoke-Expression $Import -ErrorAction Stop
+            } catch {
+                Write-Debug "[REQUIREMENTS.json] Import Unsuccessful: $_"
+            }
+        }
+
+        Write-Debug '[REQUIREMENTS.json] Test if `Command` exists ...'
+        $Command = Get-RequirementCommand -Command $requirement.Command -Path $requirement.Path -Import $requirement.Import
+        
+        if ($Command) {
+            Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
+            $global:REQUIREMENTS[$i].Command = $Command
+        } else {
+            Write-Warning @"
+Command ($($requirement.Command)) still doesn't exist after download and re-import.
+Try testing/debugging your REQUIREMENT.json: https://github.com/Vertigion/REQUIREMENTS.json/wiki/Testing
+If you're still getting errors, check issues: https://github.com/Vertigion/REQUIREMENTS.json/issues
+Submit an issue if you can't find your issue; I'm glad to help.
+"@
+            Throw [System.Management.Automation.CommandNotFoundException] "Command ($($requirement.Command)) still doesn't exist after download and re-import."
+        }
+    }
 
     $i++
 }
@@ -63,126 +330,8 @@ foreach ($requirement in $global:REQUIREMENTS) {
 # Remove-Variable 'REQUIREMENTS' -Scope 'global' -Force
 Set-Variable 'REQUIREMENTS' -Scope 'global' -Option 'ReadOnly' -Value $global:REQUIREMENTS
 
-foreach ($requirement in $global:REQUIREMENTS) {
-    Write-Debug "[REQUIREMENTS.json] $($requirement | Out-String)"
-
-    if ($requirement.Import -eq '.' -and (Test-Path $requirement.Path)) {
-        Write-Debug "[REQUIREMENTS.json] Importing: $($requirement.Path)"
-        . $requirement.Path
-    } elseif ($requirement.Import) {
-        Write-Debug "[REQUIREMENTS.json] ``Import`` command: $($requirement.Import)"
-        try {
-            Invoke-Expression $requirement.Import
-        } catch {
-            Write-Debug "[REQUIREMENTS.json] `Import` failed: $_"
-        }
-    }
-
-    $command_valid = $false
-    try {
-        if ($requirement.Command.Contains(' ')) {
-            # Get-Command doesn't error if $requirement.Command contains a space.
-            Throw('Commands should never contain a space.')
-        }
-        Get-Command $requirement.Command | Out-Null
-
-        Write-Debug '[REQUIREMENTS.json] `Command` Successful'
-        $command_valid = $true
-    } catch {
-        Write-Debug "[REQUIREMENTS.json] ``Command`` doesn't exist: $_"
-        Write-Debug '[REQUIREMENTS.json] Trying it as expression ...'
-        try {
-            if (Resolve-Path $requirement.Command) {
-                Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
-            } else {
-                Invoke-Expression $requirement.Command | Out-Null
-                Write-Debug '[REQUIREMENTS.json] Expression Successful'
-            }
-
-            $command_valid = $true
-        } catch {
-            if ($requirement.Path.EndsWith('\') -and (Test-Path $requirement.Path)) {
-                Write-Debug "[REQUIREMENTS.json] ``Command`` expression failed: $_"
-                Write-Debug '[REQUIREMENTS.json] Trying it from `Path` ...'
-                Push-Location $requirement.Path
-                
-                try {
-                    if (Resolve-Path $requirement.Command) {
-                        Write-Debug '[REQUIREMENTS.json] `Command` is a valid file.'
-                    } else {
-                        Invoke-Expression $requirement.Command | Out-Null
-                        Write-Debug '[REQUIREMENTS.json] Expression Successful'
-                    }
-
-                    $command_valid = $true
-                } catch {
-                    Write-Debug "[REQUIREMENTS.json] ``Command`` expression failed: $_"
-                }
-
-                Pop-Location
-            } else {
-                Write-Debug '[REQUIREMENTS.json] `Command` expression failed; will download the requirement ...'
-            }
-        }
-    }
-
-    if (-not $command_valid) {
-        Write-Debug '[REQUIREMENTS.json] Downloading the requirement ...'
-        if ($requirement.URL.EndsWith('.zip')) {
-            Write-Debug '[REQUIREMENTS.json] URL is ZipFile'
-            $zip_guid = [GUID]::NewGUID()
-
-            Write-Debug "[REQUIREMENTS.json] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
-            Invoke-WebRequest $requirement.URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
-
-            if (Test-Path (Split-Path $requirement.Path -Parent)) {
-                Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
-                Remove-Item (Split-Path $requirement.Path -Parent) -Force -Recurse
-            }
-
-            if ($requirement.Path.EndsWith('\')) {
-                if (Test-Path $requirement.Path) {
-                    Write-Debug '[REQUIREMENTS.json] Deleting current `Path`'
-                    Remove-Item $requirement.Path -Force -Recurse
-                }
-
-                $Parent = Split-Path $requirement.Path -Parent
-            } else {
-                if (Test-Path (Split-Path $requirement.Path -Parent)) {
-                    Write-Debug '[REQUIREMENTS.json] Deleting current `Path` Parent'
-                    Remove-Item (Split-Path $requirement.Path -Parent) -Force -Recurse
-                }
-
-                $Parent = Split-Path (Split-Path $requirement.Path -Parent) -Parent
-            }
-            
-            if (-not (Test-Path $Parent)) {
-                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "Created Directory: $_" }
-            }
-
-            Add-Type -Assembly 'System.IO.Compression.FileSystem'
-            Write-Debug "[REQUIREMENTS.json] Unzipping the ZipFile to: ${Parent}"
-            [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
-
-            Write-Debug "[REQUIREMENTS.json] Deleting the ZipFile"
-            Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
-        } else {
-            Write-Debug '[REQUIREMENTS.json] URL is File'
-            $Parent = Split-Path $requirement.Path -Parent
-            if (-not (Test-Path $Parent)) {
-                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "Created Directory: $_" }
-            }
-
-            Write-Debug '[REQUIREMENTS.json] Downloading to `Path`'
-            Invoke-WebRequest $requirement.URL -OutFile $requirement.Path -UseBasicParsing
-        }
-
-        if ($requirement.Import -eq '.') {
-            Write-Debug "[REQUIREMENTS.json] Importing: $($requirement.Path)"
-            . $requirement.Path
-        } elseif ($requirement.Import) {
-            Write-Debug "[REQUIREMENTS.json] Import Command: $($requirement.Import)"
-            Invoke-Expression $requirement.Import
-        }
-    }
-}
+# Delete our functions
+Remove-Item function:Get-RequirementCommand -Force
+Remove-Item function:Invoke-RequirementDownload -Force
+Remove-Item function:Invoke-RequirementImport -Force
+Remove-Item function:Join-RequirementPathCommand -Force
