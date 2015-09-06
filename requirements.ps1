@@ -6,7 +6,7 @@ function Get-RequirementCommand ($Command, $Path, $Import) {
 
     switch -wildcard ($Import) {
         '.' {
-            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] File import expects `Path` to be the FullPath to the file (.ps1).'
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Import` is "."'
 
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Command` exist?'
             if (Get-Command $Command -ErrorAction Ignore) {
@@ -16,14 +16,14 @@ function Get-RequirementCommand ($Command, $Path, $Import) {
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` doesn''t exist.'
         }
         'Import-Module' {
-            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Import-Module expects path to be the FullPath to the module (.psm1/.psd1) file.'
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Import` is "Import-Module"'
 
-            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Path` exist?'
-            if (Test-Path $Path) {
-                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` exists.'
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Command` exist?'
+            if (Get-Command $Command -ErrorAction Ignore) {
+                Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists.'
                 return @('Command', $Command)
             }
-            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` doesn''t exist.'
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` doesn''t exist.'
         }
         $null {
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Likely a binary file. Check that `Path` + `Command` exists.'
@@ -114,10 +114,13 @@ function Invoke-RequirementDownload ($URL, $Path) {
 
         if ($Path.EndsWith('\')) {
             $www = Invoke-WebRequest $URL -UseBasicParsing
-            $OutFile = $www.Headers.'Content-Disposition'.Split(';')[1].Split('=')[1].Trim()
-            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to ``Path``: ${OutFile}"
             if ($www.Headers.'Content-Disposition') {
-                Invoke-WebRequest $URL -OutFile "$Path=()" -UseBasicParsing
+                $OutFile = $www.Headers.'Content-Disposition'.Split(';')[1].Split('=')[1].Trim()
+                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to ``Path``: ${OutFile}"
+                Invoke-WebRequest $URL -OutFile "${Path}${OutFile}" -UseBasicParsing
+            } else {
+                Write-Debug "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path. More info: https://github.com/Vertigion/REQUIREMENTS.json/wiki/Keys#other-files"
+                Throw [System.Management.Automation.ItemNotFoundException] "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path."
             }
         } else {
             Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
@@ -198,24 +201,31 @@ function Join-RequirementPathCommand ($Path, $Command) {
 Write-Debug "[REQUIREMENTS.json] MyInvocation.MyCommand.Path: $($MyInvocation.MyCommand.Path)"
 Write-Debug "[REQUIREMENTS.json] Get-Location: $(Get-Location)"
 
-$REQUIREMENTS_json_path = "$(Split-Path $MyInvocation.MyCommand.Path -Parent)\REQUIREMENTS.json"
-$REQUIREMENTS_json_pwd = "$(Get-Location)\REQUIREMENTS.json"
+$MyInvocationPathParent = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else {  Get-Location }
+$MyInvocationPathLeaf = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Leaf } else {  $null }
 
-try {
-    $REQUIREMENTS_json = Get-Content $REQUIREMENTS_json_path -ErrorAction Stop
-} catch [System.Management.Automation.ItemNotFoundException] {
-    Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${REQUIREMENTS_json_path}"
+$REQUIREMENTS_json_imported = $false
+$REQUIREMENTS_json_locations = @(
+    "${MyInvocationPathParent}\${MyInvocationPathLeaf}_REQUIREMENTS.json",
+    "$(Get-Location)\${MyInvocationPathLeaf}_REQUIREMENTS.json",
+    "${MyInvocationPathParent}\REQUIREMENTS.json",
+    "$(Get-Location)\REQUIREMENTS.json"
+)
+
+foreach ($location in $REQUIREMENTS_json_locations) {
     try {
-    $REQUIREMENTS_json = Get-Content $REQUIREMENTS_json_pwd -ErrorAction Stop
+        $REQUIREMENTS_json = Get-Content $location -ErrorAction Stop
+        $REQUIREMENTS_json_imported = $true
     } catch [System.Management.Automation.ItemNotFoundException] {
-        Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${REQUIREMENTS_json_pwd}"
-        Throw [System.Management.Automation.ItemNotFoundException] @"
-[REQUIREMENTS.json] Cannot find 'REQUIREMENTS.json' because it does not exist in the following locations:
-    $REQUIREMENTS_json_path
-    $REQUIREMENTS_json_pwd
-"@
+        Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${location}"
     }
 }
+
+if (-not $REQUIREMENTS_json_imported)
+Throw [System.Management.Automation.ItemNotFoundException] @"
+[REQUIREMENTS.json] Cannot find 'REQUIREMENTS.json' because it does not exist in the following locations:
+`t$($REQUIREMENTS_json_locations -join "`n`t")
+"@
 
 try {
     Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json ($REQUIREMENTS_json | Out-String) -ErrorAction Stop) -ErrorAction Stop
