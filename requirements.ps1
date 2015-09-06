@@ -201,13 +201,13 @@ function Join-RequirementPathCommand ($Path, $Command) {
 Write-Debug "[REQUIREMENTS.json] MyInvocation.MyCommand.Path: $($MyInvocation.MyCommand.Path)"
 Write-Debug "[REQUIREMENTS.json] Get-Location: $(Get-Location)"
 
-$MyInvocationPathParent = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else {  Get-Location }
-$MyInvocationPathLeaf = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Leaf } else {  $null }
+$MyInvocationPathParent = if ($MyInvocation.MyCommand.Path) { Split-Path $MyInvocation.MyCommand.Path -Parent } else { Get-Location }
+$MyInvocationPathLeafBaseName = if ($MyInvocation.MyCommand.Path) { ([io.fileinfo](Split-Path $MyInvocation.MyCommand.Path -Leaf)).BaseName } else { $null }
 
 $REQUIREMENTS_json_imported = $false
 $REQUIREMENTS_json_locations = @(
-    "${MyInvocationPathParent}\${MyInvocationPathLeaf}_REQUIREMENTS.json",
-    "$(Get-Location)\${MyInvocationPathLeaf}_REQUIREMENTS.json",
+    "${MyInvocationPathParent}\${MyInvocationPathLeafBaseName}_REQUIREMENTS.json",
+    "$(Get-Location)\${MyInvocationPathLeafBaseName}_REQUIREMENTS.json",
     "${MyInvocationPathParent}\REQUIREMENTS.json",
     "$(Get-Location)\REQUIREMENTS.json"
 )
@@ -216,16 +216,19 @@ foreach ($location in $REQUIREMENTS_json_locations) {
     try {
         $REQUIREMENTS_json = Get-Content $location -ErrorAction Stop
         $REQUIREMENTS_json_imported = $true
+        Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json is here: ${location}"
+        break
     } catch [System.Management.Automation.ItemNotFoundException] {
         Write-Debug "[REQUIREMENTS.json] REQUIREMENTS.json not here: ${location}"
     }
 }
 
-if (-not $REQUIREMENTS_json_imported)
-Throw [System.Management.Automation.ItemNotFoundException] @"
+if (-not $REQUIREMENTS_json_imported) {
+    Throw [System.Management.Automation.ItemNotFoundException] @"
 [REQUIREMENTS.json] Cannot find 'REQUIREMENTS.json' because it does not exist in the following locations:
 `t$($REQUIREMENTS_json_locations -join "`n`t")
 "@
+}
 
 try {
     Set-Variable 'REQUIREMENTS' -Scope 'global' -Value (ConvertFrom-Json ($REQUIREMENTS_json | Out-String) -ErrorAction Stop) -ErrorAction Stop
@@ -308,7 +311,11 @@ foreach ($requirement in $global:REQUIREMENTS) {
 
     if ($Command) {
         Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
-        $global:REQUIREMENTS[$i][$Command[0]] = $Command[1]
+        try {
+            $global:REQUIREMENTS[$i].($Command[0]) = $Command[1]
+        } catch [System.Management.Automation.SetValueInvocationException] {
+            Add-Member -InputObject $global:REQUIREMENTS[$i] -MemberType NoteProperty -Name $Command[0] -Value $Command[1]
+        }
     } else {
         Write-Debug '[REQUIREMENTS.json] `Command` does NOT exist.'
 
@@ -336,7 +343,11 @@ foreach ($requirement in $global:REQUIREMENTS) {
         
         if ($Command) {
             Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
-            $global:REQUIREMENTS[$i][$Command[0]] = $Command[1]
+            try {
+                $global:REQUIREMENTS[$i].($Command[0]) = $Command[1]
+            } catch [System.Management.Automation.SetValueInvocationException] {
+                Add-Member -InputObject $global:REQUIREMENTS[$i] -MemberType NoteProperty -Name $Command[0] -Value $Command[1]
+            }
         } else {
             Write-Warning @"
 Command ($($requirement.Command)) still doesn't exist after download and re-import.
