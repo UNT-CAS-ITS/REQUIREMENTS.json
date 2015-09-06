@@ -11,17 +11,17 @@ function Get-RequirementCommand ($Command, $Path, $Import) {
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Command` exist?'
             if (Get-Command $Command -ErrorAction Ignore) {
                 Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists.'
-                return $Command
+                return @('Command', $Command)
             }
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` doesn''t exist.'
         }
-        'Import-Module *' {
+        'Import-Module' {
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Import-Module expects path to be the FullPath to the module (.psm1/.psd1) file.'
 
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Path` exist?'
             if (Test-Path $Path) {
                 Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` exists.'
-                return $Command
+                return @('Command', $Command)
             }
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` doesn''t exist.'
         }
@@ -32,12 +32,12 @@ function Get-RequirementCommand ($Command, $Path, $Import) {
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] Does `Path` + `Command` exist?'
             if (Test-Path $PathCommand) {
                 Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` + `Command` exists.'
-                return $PathCommand
+                return @('PathCommand', $PathCommand)
             }
             Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Path` + `Command` doesn''t exist.'
         }
         default {
-            Write-Debug "[REQUIREMENTS.json][Get-RequirementCommand] ``Import`` unhandled; check Verbose output for more information."
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Import` unhandled; check Verbose output for more information.'
             Write-Verbose @"
 [REQUIREMENTS.json][Get-RequirementCommand] ``Import`` unhandled.
 Assuming your ``Command``, ``Import``, and ``Path`` will just work.
@@ -49,12 +49,16 @@ Import.GetType().FullName: $($Import.GetType().FullName)
 Current global:REQUIREMENTS:
 $($global:REQUIREMENTS | Format-List | Out-String)
 "@
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a file?'
             if (Test-Path $Command) {
                 Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a file.'
-                return $Command
-            } elseif (Get-Command $Command -ErrorAction Ignore) {
+                return @('Command', $Command)
+            }
+
+            Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a command?'
+            if (Get-Command $Command -ErrorAction Ignore) {
                 Write-Debug '[REQUIREMENTS.json][Get-RequirementCommand] `Command` exists as a command.'
-                return $Command
+                return @('Command', $Command)
             }
         }
     }
@@ -81,14 +85,14 @@ function Invoke-RequirementDownload ($URL, $Path) {
                 Remove-Item $Path -Force -Recurse
             }
 
-            $Parent = Split-Path $Path -Parent
+            $Parent = $Path
         } else {
             if (Test-Path (Split-Path $Path -Parent)) {
                 Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
                 Remove-Item (Split-Path $Path -Parent) -Force -Recurse
             }
 
-            $Parent = Split-Path (Split-Path $Path -Parent) -Parent
+            $Parent = Split-Path $Path -Parent
         }
         
         if (-not (Test-Path $Parent)) {
@@ -108,8 +112,17 @@ function Invoke-RequirementDownload ($URL, $Path) {
             New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
         }
 
-        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
-        Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+        if ($Path.EndsWith('\')) {
+            $www = Invoke-WebRequest $URL -UseBasicParsing
+            $OutFile = $www.Headers.'Content-Disposition'.Split(';')[1].Split('=')[1].Trim()
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to ``Path``: ${OutFile}"
+            if ($www.Headers.'Content-Disposition') {
+                Invoke-WebRequest $URL -OutFile "$Path=()" -UseBasicParsing
+            }
+        } else {
+            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
+            Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+        }
     }
 }
 
@@ -124,7 +137,7 @@ function Invoke-RequirementImport ($Import, $Path) {
                 Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Unable to Import (``Path`` doesn't exist): . ${Path}"
             }
         }
-        'Import-Module *' {
+        'Import-Module' {
             Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Import-Module expects path to be the FullPath to the module (.psm1/.psd1) file.'
 
             Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Does `Path` exist?'
@@ -132,11 +145,11 @@ function Invoke-RequirementImport ($Import, $Path) {
                 Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` exists.'
                 try {
                     # Importing within a modules within a function is fine.
-                    Invoke-Expression $Import -ErrorAction Stop
+                    Import-Module $Path -ErrorAction Stop
 
                     return $true
                 } catch {
-                    Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
+                    Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Import-Module failed: $_"
                 }
             } else {
                 Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` doesn''t exist.'
@@ -158,28 +171,8 @@ Import.GetType().FullName: $($Import.GetType().FullName)
 Current global:REQUIREMENTS:
 $($global:REQUIREMENTS | Format-List | Out-String)
 "@
-            if ($Invoke -contains $Path) {
-                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` detected in `Import`.'
-                
-                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] Does `Path` exist?'
-                if (Test-Path $Path) {
-                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` exists.'
-                    try {
-                        Invoke-Expression $Import -ErrorAction Stop
-                        return $Import
-                    } catch {
-                        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
-                    }
-                } else {
-                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementImport] `Path` doesn''t exist.'
-                }
-            }
-            try {
-                Invoke-Expression "try { ${Import} } catch { Write-Debug ""[REQUIREMENTS.json][Invoke-RequirementImport] `Import` failed: $_"" }" -ErrorAction Stop
-                return $Import
-            } catch {
-                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Invoke-Expression failed: $_"
-            }
+            # Not sure what this import command is, so let's just return it to ensure the scope is correct
+            return $Import
         }
     }
 
@@ -305,7 +298,7 @@ foreach ($requirement in $global:REQUIREMENTS) {
 
     if ($Command) {
         Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
-        $global:REQUIREMENTS[$i].Command = $Command
+        $global:REQUIREMENTS[$i][$Command[0]] = $Command[1]
     } else {
         Write-Debug '[REQUIREMENTS.json] `Command` does NOT exist.'
 
@@ -333,7 +326,7 @@ foreach ($requirement in $global:REQUIREMENTS) {
         
         if ($Command) {
             Write-Debug '[REQUIREMENTS.json] `Command` exists; setting global:REQUIREMENTS.'
-            $global:REQUIREMENTS[$i].Command = $Command
+            $global:REQUIREMENTS[$i][$Command[0]] = $Command[1]
         } else {
             Write-Warning @"
 Command ($($requirement.Command)) still doesn't exist after download and re-import.
