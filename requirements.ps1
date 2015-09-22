@@ -67,64 +67,64 @@ $($global:REQUIREMENTS | Format-List | Out-String)
 }
 
 function Invoke-RequirementDownload ($URL, $Path) {
-    if ($URL.EndsWith('.zip')) {
-        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] URL is ZipFile'
-        $zip_guid = [GUID]::NewGUID()
+    $www = Invoke-WebRequest $URL -UseBasicParsing
 
-        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
-        Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
+    switch ($www.Headers.'Content-Type') {
+        'application/zip' {
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] URL is ZipFile: $($www.Headers.'Content-Type')"
+            $zip_guid = [GUID]::NewGUID()
 
-        if (Test-Path (Split-Path $Path -Parent)) {
-            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
-            Remove-Item (Split-Path $Path -Parent) -Force -Recurse
-        }
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to: ${env:Temp}\requirement_${zip_guid}.zip"
+            Invoke-WebRequest $URL -OutFile "${env:Temp}\requirement_${zip_guid}.zip" -UseBasicParsing
 
-        if ($Path.EndsWith('\')) {
-            if (Test-Path $Path) {
-                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path`'
-                Remove-Item $Path -Force -Recurse
-            }
+            if ($Path.EndsWith('\')) {
+                if (Test-Path $Path) {
+                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path`'
+                    Remove-Item $Path -Force -Recurse
+                }
 
-            $Parent = $Path
-        } else {
-            if (Test-Path (Split-Path $Path -Parent)) {
-                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
-                Remove-Item (Split-Path $Path -Parent) -Force -Recurse
-            }
-
-            $Parent = Split-Path $Path -Parent
-        }
-        
-        if (-not (Test-Path $Parent)) {
-            New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
-        }
-
-        Add-Type -Assembly 'System.IO.Compression.FileSystem'
-        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Unzipping the ZipFile to: ${Parent}"
-        [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
-
-        Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting the ZipFile"
-        Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
-    } else {
-        Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] URL is not a ZipFile'
-        $Parent = Split-Path $Path -Parent
-        if (-not (Test-Path $Parent)) {
-            New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
-        }
-
-        if ($Path.EndsWith('\')) {
-            $www = Invoke-WebRequest $URL -UseBasicParsing
-            if ($www.Headers.'Content-Disposition') {
-                $OutFile = $www.Headers.'Content-Disposition'.Split(';')[1].Split('=')[1].Trim()
-                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to ``Path``: ${OutFile}"
-                Invoke-WebRequest $URL -OutFile "${Path}${OutFile}" -UseBasicParsing
+                $Parent = $Path
             } else {
-                Write-Debug "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path. More info: https://github.com/Vertigion/REQUIREMENTS.json/wiki/Keys#other-files"
-                Throw [System.Management.Automation.ItemNotFoundException] "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path."
+                if (Test-Path (Split-Path $Path -Parent)) {
+                    Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting current `Path` Parent'
+                    Remove-Item (Split-Path $Path -Parent) -Force -Recurse
+                }
+
+                $Parent = Split-Path $Path -Parent
             }
-        } else {
-            Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
-            Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+            
+            if (-not (Test-Path $Parent)) {
+                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
+            }
+
+            Add-Type -Assembly 'System.IO.Compression.FileSystem'
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Unzipping the ZipFile to: ${Parent}"
+            [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path "${env:Temp}\requirement_${zip_guid}.zip"), (Resolve-Path $Parent))
+
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Deleting the ZipFile"
+            Remove-Item "${env:Temp}\requirement_${zip_guid}.zip"
+        }
+        default {
+            Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] URL is: $($www.Headers.'Content-Type')"
+            $Parent = Split-Path $Path -Parent
+            if (-not (Test-Path $Parent)) {
+                New-Item -ItemType Directory -Force -Path $Parent | %{ Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Created Directory: $_" }
+            }
+
+            if ($Path.EndsWith('\')) {
+                $www = Invoke-WebRequest $URL -UseBasicParsing
+                if ($www.Headers.'Content-Disposition') {
+                    $OutFile = $www.Headers.'Content-Disposition'.Split(';')[1].Split('=')[1].Trim()
+                    Write-Debug "[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to ``Path``: ${OutFile}"
+                    Invoke-WebRequest $URL -OutFile "${Path}${OutFile}" -UseBasicParsing
+                } else {
+                    Write-Debug "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path. More info: https://github.com/Vertigion/REQUIREMENTS.json/wiki/Keys#other-files"
+                    Throw [System.Management.Automation.ItemNotFoundException] "Web Headers do not contain Content-Disposition; try setting ``Path`` to a full path."
+                }
+            } else {
+                Write-Debug '[REQUIREMENTS.json][Invoke-RequirementDownload] Downloading to `Path`'
+                Invoke-WebRequest $URL -OutFile $Path -UseBasicParsing
+            }
         }
     }
 }
