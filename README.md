@@ -9,7 +9,7 @@ The wiki contains a [more complete explanation](../../wiki/Home).
 Add this line to the top of your script (although, I prefer [this method](../../wiki/Usage#pull-from-github-and-archive)):
 
 ```powershell
-Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/UNT-CAS-ITS/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
+Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/Vertigion/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
 ```
 
 Create a `REQUIREMENTS.json` file and put it in the same directory as your script.
