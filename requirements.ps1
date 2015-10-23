@@ -135,7 +135,12 @@ function Invoke-RequirementImport ($Import, $Path) {
             if (Test-Path $Path) {
                 Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Importing: . ${Path}"
                 # Importing within a function keeps imports within the scope of the funtion
-                return ". ""${Path}"""
+                Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Get-ExecutionPolicy: $(Get-ExecutionPolicy)"
+                if (((Get-ExecutionPolicy) -ieq 'Restricted') -or ((Get-ExecutionPolicy) -ieq 'AllSigned')) {
+                    return [IO.File]::ReadAllText((Resolve-Path $Path))
+                } else {
+                    return ". ""${Path}"""
+                }
             } else {
                 Write-Debug "[REQUIREMENTS.json][Invoke-RequirementImport] Unable to Import (``Path`` doesn't exist): . ${Path}"
             }
