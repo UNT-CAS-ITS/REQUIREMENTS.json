@@ -1,4 +1,6 @@
-REQUIREMENTS.json is a pre-requisites downloader and extractor (given a .zip). Think of it like Python's REQUIREMENTS.txt, but without requiring [pip, a central repository of modules/extensions](https://pypi.python.org).
+REQUIREMENTS.json is a pre-requisites downloader and extractor (given a .zip). Think of it like Python's REQUIREMENTS.txt, but without requiring [pip, a central repository of modules/extensions](https://pypi.python.org). Although, if you add a *REQUREMENTS.json* wiki page to your GitHub project, I have a list you will show up on:
+
+- [All GitHub Repos with a REQUIREMENTS.json wiki article.](https://www.google.com/search?q=site%3Agithub.com+allinurl%3A+%22wiki%2FREQUIREMENTS.json%22)
 
 All functionality is done in a [single, simple script](requirements.ps1). This script reads your REQUIREMENTS.json file and downloads (if not already present at the location that you specify), imports, and verifies that your script's requirements are available for use by your script.
 
