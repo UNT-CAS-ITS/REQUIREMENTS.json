@@ -8,13 +8,12 @@ The wiki contains a [more complete explanation](../../wiki/Home).
 
 # Quick Start
 
-Add this line to the top of your script (although, I prefer [this method](../../wiki/Usage#pull-from-github-and-archive)):
+1. Add this line to the top of your script (although, I prefer [this method](../../wiki/Usage#pull-from-github-and-archive)):
+    ```powershell
+    Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/Vertigion/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
+    ```
 
-```powershell
-Invoke-Expression (Invoke-WebRequest 'https://raw.githubusercontent.com/Vertigion/REQUIREMENTS.json/v1.2/requirements.ps1' -UseBasicParsing).Content
-```
-
-Create a `REQUIREMENTS.json` file and put it in the same directory as your script.
+2. Create a `REQUIREMENTS.json` file and put it in the same directory as your script.
 
 # Example REQUIREMENTS.json
 
