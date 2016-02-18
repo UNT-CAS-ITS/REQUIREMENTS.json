@@ -17,6 +17,8 @@ The wiki contains a [more complete explanation](../../wiki/Home).
 
 # Example REQUIREMENTS.json
 
+For a complete list of `REQUIREMENTS.json` configs that I use in production, check out the sample [REQUIREMENTS.json](REQUIREMENTS.json) file.
+
 ```json
 [
     {
