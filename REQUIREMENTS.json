@@ -1,0 +1,33 @@
+[
+    
+    {
+        "Name": "7zip",
+        "Command": "7za.exe",
+        "Version": "9.20",
+        "URL": "http://www.7-zip.org/a/7za920.zip",
+        "Path": "{0}\\REQUIREMENTS.json\\{1}-{2}\\",
+        "Path_f": "@($env:Temp, $requirement.Name, $requirement.Version)"
+    },
+    {
+        "Name": "AlphaFS",
+        "Command": "{0}AlphaFS.2.0.1\\lib\\net451\\AlphaFS.dll",
+        "Command_f": "$Path",
+        "Version": "2.0.1",
+        "URL": "https://github.com/alphaleonis/AlphaFS/releases/download/v{0}/AlphaFS.{0}.zip",
+        "URL_f": "@($requirement.Version)",
+        "Path": "{0}\\REQUIREMENTS.json\\{1}-{2}\\",
+        "Path_f": "@($env:Temp, $requirement.Name, $requirement.Version)",
+        "Import": "Import-Module {0} -ErrorAction SilentlyContinue",
+        "Import_f": "@($Command)"
+    },
+    {
+        "Name": "Get-FolderItem",
+        "Command": "Get-FolderItem",
+        "Version": "2014.01.16",
+        "Source": "https://gallery.technet.microsoft.com/scriptcenter/Get-Deeply-Nested-Files-a2148fd7",
+        "URL": "https://gallery.technet.microsoft.com/scriptcenter/Get-Deeply-Nested-Files-a2148fd7/file/107404/1/Get-FolderItem.ps1",
+        "Path": "{0}\\REQUIREMENTS.json\\{1}-{2}\\Get-FolderItem.ps1",
+        "Path_f": "@($env:Temp, $requirement.Name, $requirement.Version)",
+        "Import": "."
+    }
+]
